@@ -3,9 +3,14 @@ const { useState, useEffect, useRef } = React;
 // --- UTILITY: Secure Local/Remote Store ---
 const STORE_PREFIX = 'dashboard_v3_';
 
+// Safe localStorage wrappers (handles Streamlit iframe SecurityError)
+const _lsGet = (k) => { try { return localStorage.getItem(k); } catch(e) { return null; } };
+const _lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch(e) {} };
+const _lsDel = (k) => { try { localStorage.removeItem(k); } catch(e) {} };
+
 const getStoredItem = (key, defaultValue) => {
   try {
-    const val = localStorage.getItem(STORE_PREFIX + key);
+    const val = _lsGet(STORE_PREFIX + key);
     return val ? JSON.parse(val) : defaultValue;
   } catch (e) {
     return defaultValue;
@@ -14,10 +19,8 @@ const getStoredItem = (key, defaultValue) => {
 
 const setStoredItem = (key, value) => {
   try {
-    localStorage.setItem(STORE_PREFIX + key, JSON.stringify(value));
-  } catch (e) {
-    console.error("Local storage error:", e);
-  }
+    _lsSet(STORE_PREFIX + key, JSON.stringify(value));
+  } catch (e) {}
 };
 
 // --- SECURITY: Disable Right-click & Inspection Keys ---
@@ -193,10 +196,10 @@ function App() {
     const root = document.documentElement;
     if (theme === 'dark') {
       root.classList.add('dark');
-      document.body.style.backgroundColor = '#0b0f19';
+      try { document.body.style.backgroundColor = '#0b0f19'; } catch(e) {}
     } else {
       root.classList.remove('dark');
-      document.body.style.backgroundColor = '#f1f5f9';
+      try { document.body.style.backgroundColor = '#f1f5f9'; } catch(e) {}
     }
     setStoredItem('theme', theme);
   }, [theme]);
@@ -224,7 +227,7 @@ function App() {
     setStoredItem('auth', false);
     setStoredItem('role', '');
     setGmailAccessToken('');
-    localStorage.removeItem(STORE_PREFIX + 'gmail_access_token');
+    _lsDel(STORE_PREFIX + 'gmail_access_token');
   };
 
   const initializeSupabase = async (url, key) => {
@@ -1837,10 +1840,7 @@ function PomodoroWidget({ stats, setStats, isEnlarged }) {
   );
 }
 
-// --- RENDER BOOTSTRAP ---
-const rootEl = document.getElementById('root');
-const root = ReactDOM.createRoot(rootEl);
-root.render(<App />);
+// --- RENDER BOOTSTRAP (moved to end of file) ---
 
 // ============================================================
 // NEW ANALYTICS WIDGETS
@@ -2525,12 +2525,12 @@ function CryptoTickerWidget({ isEnlarged }) {
     if (watchlist.includes(id)) return;
     const w = [...watchlist, id].slice(0, 8);
     setWatchlist(w);
-    localStorage.setItem('dashboard_v3_crypto_watchlist', JSON.stringify(w));
+    _lsSet('dashboard_v3_crypto_watchlist', JSON.stringify(w));
   };
   const removeFromWatchlist = (id) => {
     const w = watchlist.filter(x => x !== id);
     setWatchlist(w);
-    localStorage.setItem('dashboard_v3_crypto_watchlist', JSON.stringify(w));
+    _lsSet('dashboard_v3_crypto_watchlist', JSON.stringify(w));
     if (selected === id && w.length) setSelected(w[0]);
   };
 
@@ -2865,7 +2865,7 @@ function CodeStatsWidget({ keys, isEnlarged }) {
   };
 
   const [manual, setManual] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(SK) || JSON.stringify(defaultManual)); } catch(e) { return defaultManual; }
+    try { return JSON.parse(_lsGet(SK) || JSON.stringify(defaultManual)); } catch(e) { return defaultManual; }
   });
 
   useEffect(() => {
@@ -2991,7 +2991,7 @@ function CodeStatsWidget({ keys, isEnlarged }) {
                   onChange={e => {
                     const updated = { ...manual, languages: manual.languages.map((x, j) => j === i ? { ...x, hours: parseFloat(e.target.value) || 0 } : x) };
                     setManual(updated);
-                    localStorage.setItem(SK, JSON.stringify(updated));
+                    _lsSet(SK, JSON.stringify(updated));
                   }}
                   className="w-10 bg-transparent border-b border-slate-600 text-[9px] text-indigo-300 focus:outline-none text-center" />
                 <span className="text-[8px] text-slate-500">h</span>
@@ -3002,4 +3002,11 @@ function CodeStatsWidget({ keys, isEnlarged }) {
       )}
     </div>
   );
+}
+
+// --- RENDER BOOTSTRAP ---
+const rootEl = document.getElementById('root');
+if (rootEl) {
+  const root = ReactDOM.createRoot(rootEl);
+  root.render(<App />);
 }
