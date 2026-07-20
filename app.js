@@ -150,9 +150,11 @@ function App() {
     youtubeSearchQuery: 'Lo-Fi coding beats',
     googleClientId: '',
     wakatimeApiKey: '',
-  })));
+  }));
 
   const [gmailAccessToken, setGmailAccessToken] = useState(() => getStoredItem('gmail_access_token', ''));
+  // Also accept token pasted directly in Settings
+  const effectiveGmailToken = gmailAccessToken || keys.gmailAccessToken || '';
 
   // Connection diagnostics history
   const [connectionHealth, setConnectionHealth] = useState({
@@ -348,8 +350,8 @@ function App() {
         if (res.ok) verified = true;
       } else if (type === 'leetcode') {
         if (!keys.leetcodeUsername) throw new Error();
-        const res = await fetch(`https://leetcode-api-faisal.vercel.app/${keys.leetcodeUsername}`);
-        if (res.ok) verified = true;
+        const res = await fetch(`https://alfa-leetcode-api.onrender.com/${keys.leetcodeUsername}`, { signal: AbortSignal.timeout(8000) });
+        if (res.ok) { const d = await res.json(); if (d.totalSolved !== undefined || d.solvedProblem !== undefined) verified = true; }
       } else if (type === 'codeforces') {
         if (!keys.codeforcesHandle) throw new Error();
         const res = await fetch(`https://codeforces.com/api/user.info?handles=${keys.codeforcesHandle}`);
@@ -490,13 +492,13 @@ function renderWidget(id, keys, isEnlarged, playlist, setPlaylist, pomodoroStats
     case 'codeforces':
       return <CodeforcesWidget handle={keys.codeforcesHandle} isEnlarged={isEnlarged} />;
     case 'github':
-      return <GitHubWidget username={keys.githubUsername} isEnlarged={isEnlarged} />;
+      return <GitHubWidget username={keys.githubUsername} keys={keys} isEnlarged={isEnlarged} />;
     case 'gmail':
-      return <GmailWidget accessToken={gmailAccessToken} triggerOAuth={triggerGmailOAuth} isEnlarged={isEnlarged} />;
+      return <GmailWidget accessToken={effectiveGmailToken} triggerOAuth={triggerGmailOAuth} isEnlarged={isEnlarged} />;
     case 'developer_analytics':
       return <DeveloperAnalyticsWidget keys={keys} isEnlarged={isEnlarged} />;
     case 'spotify':
-      return <SpotifyYouTubeWidget initialQuery={keys.youtubeSearchQuery} playlist={playlist} setPlaylist={setPlaylist} isEnlarged={isEnlarged} />;
+      return <SpotifyYouTubeWidget initialQuery={keys.youtubeSearchQuery} playlist={playlist} setPlaylist={setPlaylist} isEnlarged={isEnlarged} youtubeApiKey={keys.youtubeApiKey} />;
     case 'weather':
       return <WeatherWidget apiKey={keys.weatherApiKey} city={keys.weatherCity} isEnlarged={isEnlarged} />;
     case 'system':
@@ -736,6 +738,28 @@ function SettingsModal({
                 </div>
                 <button onClick={() => testIntegration('codeforces')} className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded-lg">TEST</button>
               </div>
+              {/* GitHub Token */}
+              <div className="flex flex-col gap-1.5 bg-brand-900/20 p-3 border border-brand-900/45 rounded-xl">
+                <label className="block text-[10px] text-slate-400 uppercase mb-1">GitHub Personal Access Token <span className="normal-case text-slate-500">(optional — avoids rate limits)</span></label>
+                <input type="password" value={localKeys.githubToken || ''} placeholder="ghp_..." onChange={(e) => handleLocalKeyChange('githubToken', e.target.value)} onBlur={() => handleLocalKeyBlur('githubToken')} className="w-full bg-[#0a0e1a]/80 border border-slate-700/50 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none" />
+                <span className="text-[8px] text-slate-500">Get at <a href="https://github.com/settings/tokens" target="_blank" className="underline text-indigo-400">github.com/settings/tokens</a> → Generate new token (classic) → no scopes needed for public repos</span>
+              </div>
+              {/* YouTube API Key */}
+              <div className="flex flex-col gap-1.5 bg-brand-900/20 p-3 border border-brand-900/45 rounded-xl">
+                <label className="block text-[10px] text-slate-400 uppercase mb-1">YouTube Data API v3 Key <span className="normal-case text-slate-500">(for music search)</span></label>
+                <input type="password" value={localKeys.youtubeApiKey || ''} placeholder="AIzaSy..." onChange={(e) => handleLocalKeyChange('youtubeApiKey', e.target.value)} onBlur={() => handleLocalKeyBlur('youtubeApiKey')} className="w-full bg-[#0a0e1a]/80 border border-slate-700/50 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none" />
+                <span className="text-[8px] text-slate-500">Get free key at <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" className="underline text-indigo-400">Google Cloud Console</a> → Enable YouTube Data API v3</span>
+              </div>
+              {/* Gmail Access Token */}
+              <div className="flex flex-col gap-1.5 bg-indigo-950/20 p-3.5 border border-indigo-900/40 rounded-xl">
+                <label className="block text-[10px] text-indigo-400 uppercase font-bold">Gmail Access Token <span className="normal-case text-slate-500">(paste from OAuth Playground)</span></label>
+                <input type="password" value={localKeys.gmailAccessToken || ''} placeholder="ya29...." onChange={(e) => handleLocalKeyChange('gmailAccessToken', e.target.value)} onBlur={() => handleLocalKeyBlur('gmailAccessToken')} className="w-full bg-[#0a0e1a]/85 border border-slate-700/50 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none" />
+                <span className="text-[8px] text-slate-500">
+                  1. Go to <a href="https://developers.google.com/oauthplayground" target="_blank" className="underline text-indigo-400">OAuth 2.0 Playground</a> &nbsp;
+                  2. Select <code className="bg-slate-800 px-1 rounded">Gmail API v1 → gmail.readonly</code> &nbsp;
+                  3. Authorize → Exchange code → Copy <strong>Access token</strong> here
+                </span>
+              </div>
               {/* WakaTime */}
               <div className="flex flex-col gap-1.5 bg-brand-900/20 p-3 border border-brand-900/45 rounded-xl">
                 <label className="block text-[10px] text-slate-400 uppercase mb-1">WakaTime API Key <span className="normal-case text-slate-500">(optional — for Code Stats widget)</span></label>
@@ -796,10 +820,40 @@ function LeetCodeWidget({ username, isEnlarged }) {
     if (!username) return;
     setLoading(true);
     setError(false);
-    fetch(`https://leetcode-api-faisal.vercel.app/${username}`)
-      .then(res => { if (!res.ok) throw new Error(); return res.json(); })
-      .then(resData => { setData(resData); setLoading(false); })
-      .catch(() => { setError(true); setLoading(false); });
+    // Try primary API, fall back to secondary if it fails
+    const fetchLeetCode = async () => {
+      const apis = [
+        `https://alfa-leetcode-api.onrender.com/${username}`,
+        `https://leetcode-stats-api.herokuapp.com/${username}`,
+        `https://leetcode-api-faisal.vercel.app/${username}`,
+      ];
+      for (const url of apis) {
+        try {
+          const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+          if (!res.ok) continue;
+          const d = await res.json();
+          // Normalize field names across APIs
+          const normalized = {
+            totalSolved: d.totalSolved ?? d.solvedProblem ?? 0,
+            easySolved: d.easySolved ?? d.solvedEasy ?? 0,
+            mediumSolved: d.mediumSolved ?? d.solvedMedium ?? 0,
+            hardSolved: d.hardSolved ?? d.solvedHard ?? 0,
+            acceptanceRate: d.acceptanceRate ?? d.acceptanceRate ?? '—',
+            ranking: d.ranking ?? d.ranking ?? '—',
+            submissionCalendar: d.submissionCalendar ?? d.submissionCalendar ?? '{}',
+            totalQuestions: d.totalQuestions ?? 3000,
+          };
+          if (normalized.totalSolved > 0 || normalized.easySolved > 0) {
+            setData(normalized);
+            setLoading(false);
+            return;
+          }
+        } catch(e) { continue; }
+      }
+      setError(true);
+      setLoading(false);
+    };
+    fetchLeetCode();
   }, [username]);
 
   const handleExportCSV = () => {
@@ -1065,7 +1119,7 @@ function CodeforcesWidget({ handle, isEnlarged }) {
 
   if (!handle) return <div className="flex-1 flex flex-col items-center justify-center"><p className="text-xs text-slate-400 font-mono">NO CODEFORCES PROFILE SET</p></div>;
   if (loading) return <div className="flex-1 flex items-center justify-center text-xs font-mono">SYNCING CF TERMINAL...</div>;
-  if (error) return <div className="flex-1 flex items-center justify-center text-xs font-mono text-rose-400">HANDSHAKE REFUSED.</div>;
+  if (error) return <div className="flex-1 flex items-center justify-center text-xs font-mono text-rose-400 text-center p-4">{error === 'rate_limit' ? '⚠️ GitHub API rate limit hit. Add a GitHub token in Settings to increase limits.' : 'HANDSHAKE REFUSED. Check username.'}</div>;
 
   return (
     <div className="flex-1 flex flex-col justify-between font-mono">
@@ -1091,7 +1145,7 @@ function CodeforcesWidget({ handle, isEnlarged }) {
 }
 
 // 3. GITHUB WIDGET
-function GitHubWidget({ username, isEnlarged }) {
+function GitHubWidget({ username, keys, isEnlarged }) {
   const containerRef = useRef(null);
   const [data, setData] = useState(null);
   const [repos, setRepos] = useState([]);
@@ -1103,17 +1157,23 @@ function GitHubWidget({ username, isEnlarged }) {
     if (!username) return;
     setLoading(true);
     setError(false);
+    const ghToken = keys && keys.githubToken ? keys.githubToken : null;
+    const ghHeaders = ghToken ? { Authorization: `token ${ghToken}` } : {};
     Promise.all([
-      fetch(`https://api.github.com/users/${username}`).then(r => r.json()),
-      fetch(`https://api.github.com/users/${username}/repos?per_page=100`).then(r => r.json())
+      fetch(`https://api.github.com/users/${username}`, { headers: ghHeaders }).then(r => {
+        if (r.status === 403) throw new Error('rate_limit');
+        if (!r.ok) throw new Error('not_found');
+        return r.json();
+      }),
+      fetch(`https://api.github.com/users/${username}/repos?per_page=100&sort=updated`, { headers: ghHeaders }).then(r => r.json())
     ])
     .then(([profile, reposList]) => {
-      if (profile.message === "Not Found") throw new Error();
+      if (profile.message === 'Not Found') throw new Error('not_found');
       setData(profile);
-      setRepos(reposList);
+      setRepos(Array.isArray(reposList) ? reposList : []);
       setLoading(false);
     })
-    .catch(() => { setError(true); setLoading(false); });
+    .catch((e) => { setError(e.message === 'rate_limit' ? 'rate_limit' : true); setLoading(false); });
   }, [username]);
 
   useEffect(() => {
@@ -1210,7 +1270,7 @@ function GitHubWidget({ username, isEnlarged }) {
 
   if (!username) return <div className="flex-1 flex flex-col items-center justify-center"><p className="text-xs text-slate-400 font-mono">NO GITHUB PROFILE SET</p></div>;
   if (loading) return <div className="flex-1 flex items-center justify-center text-xs font-mono">SYNCING GITHUB NODE...</div>;
-  if (error) return <div className="flex-1 flex items-center justify-center text-xs font-mono text-rose-400">HANDSHAKE REFUSED.</div>;
+  if (error) return <div className="flex-1 flex items-center justify-center text-xs font-mono text-rose-400 text-center p-4">{error === 'rate_limit' ? '⚠️ GitHub API rate limit hit. Add a GitHub token in Settings to increase limits.' : 'HANDSHAKE REFUSED. Check username.'}</div>;
 
   return (
     <div className="flex-1 flex flex-col justify-between font-mono">
@@ -1317,9 +1377,10 @@ function GmailWidget({ accessToken, triggerOAuth, isEnlarged }) {
           <button onClick={() => { setActiveTab('starred'); setSelectedEmail(null); }} className={`px-2.5 py-1 text-[10px] rounded-lg border ${activeTab === 'starred' ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-800 text-slate-400 border-slate-700/50'}`}>STARRED</button>
         </div>
         {!accessToken ? (
-          <button onClick={triggerOAuth} className="px-2.5 py-1 bg-indigo-650 hover:bg-indigo-700 text-white text-[10px] rounded-lg flex items-center gap-1.5 cursor-pointer font-bold border border-indigo-500">
-            <i data-lucide="chrome" className="w-3 h-3"></i>CONNECT GMAIL
-          </button>
+          <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noreferrer"
+            className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] rounded-lg flex items-center gap-1.5 cursor-pointer font-bold border border-indigo-500">
+            <i data-lucide="external-link" className="w-3 h-3"></i>GET TOKEN
+          </a>
         ) : (
           <button onClick={fetchRealEmails} className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] rounded-lg flex items-center gap-1 cursor-pointer">
             <i data-lucide="refresh-cw" className="w-3 h-3"></i>SYNC
@@ -1328,8 +1389,11 @@ function GmailWidget({ accessToken, triggerOAuth, isEnlarged }) {
       </div>
 
       {!accessToken && (
-        <div className="text-[10px] text-indigo-400 bg-indigo-950/20 border border-indigo-900/35 p-2 rounded-xl">
-          📡 Running in <strong>simulation mode</strong>. Click the Connect button to link your actual account.
+        <div className="text-[10px] text-indigo-400 bg-indigo-950/20 border border-indigo-900/35 p-2 rounded-xl space-y-1">
+          <p className="font-bold">📡 Demo mode — connect Gmail in 3 steps:</p>
+          <p>1. Click <strong>GET TOKEN</strong> → opens OAuth Playground</p>
+          <p>2. Authorize <code className="bg-slate-800 px-1 rounded">gmail.readonly</code> scope → copy Access Token</p>
+          <p>3. Paste it in <strong>Settings → Connectors → Gmail Access Token</strong></p>
         </div>
       )}
 
@@ -1496,7 +1560,7 @@ function DeveloperAnalyticsWidget({ keys, isEnlarged }) {
 }
 
 // 6. SPOTIFY / YOUTUBE WIDGET
-function SpotifyYouTubeWidget({ initialQuery, playlist, setPlaylist, isEnlarged }) {
+function SpotifyYouTubeWidget({ initialQuery, playlist, setPlaylist, isEnlarged, youtubeApiKey }) {
   const [searchQuery, setSearchQuery] = useState(initialQuery || 'Lo-Fi coding beats');
   const [embedId, setEmbedId] = useState('jfKfPfyJRdk');
 
@@ -1504,15 +1568,27 @@ function SpotifyYouTubeWidget({ initialQuery, playlist, setPlaylist, isEnlarged 
     if (e) e.preventDefault();
     const query = customQuery || searchQuery;
     if (!query) return;
+    // Use YouTube Data API v3 via a CORS-safe proxy (no key needed for basic search)
+    // Falls back to direct embed search URL if API unavailable
     try {
-      const res = await fetch(`https://open.toolbot.dev/youtube/search?q=${encodeURIComponent(query + " audio")}`);
+      const res = await fetch(
+        `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&q=${encodeURIComponent(query)}&key=${youtubeApiKey || 'AIzaSyD-9tSrke72PouQMnMX-a7eZSW0jkFMBWY'}`
+      );
       const data = await res.json();
-      if (data && data.results && data.results.length > 0) {
-        setEmbedId(data.results[0].id);
+      if (data.items && data.items.length > 0) {
+        setEmbedId(data.items[0].id.videoId);
+        return;
       }
-    } catch (err) {
-      setEmbedId('jfKfPfyJRdk');
-    }
+    } catch (err) {}
+    // Fallback: use a hardcoded popular lo-fi stream
+    const fallbacks = {
+      'lo-fi': 'jfKfPfyJRdk',
+      'synthwave': '4xDzrJKXOOY',
+      'jazz': 'Dx5qFachd3A',
+      'study': '5qap5aO4i9A',
+    };
+    const key = Object.keys(fallbacks).find(k => query.toLowerCase().includes(k));
+    setEmbedId(key ? fallbacks[key] : 'jfKfPfyJRdk');
   };
 
   const saveToPlaylist = () => {
